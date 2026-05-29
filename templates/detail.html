@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Ticket Detail — Datastraw CRM{% endblock %}
+{% block page_title %}Ticket Detail{% endblock %}
+{% block page_subtitle %}View and manage this support ticket{% endblock %}
+
+{% block content %}
+<div id="loading" class="text-slate-400 text-sm py-12 text-center">Loading ticket…</div>
+<div id="ticket-content" class="hidden">
+
+  <div class="mb-5 flex items-center gap-3">
+    <a href="/" class="text-sm text-slate-500 hover:text-brand-600 transition">← All Tickets</a>
+    <span class="text-slate-300">/</span>
+    <span class="text-sm font-mono text-brand-700 font-medium" id="hdr-id"></span>
+  </div>
+
+  <div class="grid grid-cols-3 gap-6">
+
+    <!-- Left: Ticket Info -->
+    <div class="col-span-2 space-y-5">
+
+      <!-- Main card -->
+      <div class="bg-white rounded-xl border border-slate-200 p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <span class="font-mono text-xs text-brand-600 font-semibold" id="ticket-id-label"></span>
+            <h2 class="text-lg font-semibold text-slate-800 mt-1" id="ticket-subject"></h2>
+          </div>
+          <span id="ticket-status-badge" class="px-3 py-1 rounded-full text-xs font-bold"></span>
+        </div>
+        <p class="text-sm text-slate-600 leading-relaxed" id="ticket-description"></p>
+        <div class="mt-4 pt-4 border-t border-slate-100 flex gap-6 text-xs text-slate-400">
+          <span>Created: <span class="text-slate-600 font-medium" id="ticket-created"></span></span>
+          <span>Updated: <span class="text-slate-600 font-medium" id="ticket-updated"></span></span>
+        </div>
+      </div>
+
+      <!-- Notes section -->
+      <div class="bg-white rounded-xl border border-slate-200 p-6">
+        <h3 class="text-sm font-semibold text-slate-700 mb-4">Notes & Activity</h3>
+        <div id="notes-list" class="space-y-3 mb-6"></div>
+
+        <!-- Add note -->
+        <div class="border-t border-slate-100 pt-4">
+          <label class="block text-xs font-medium text-slate-500 mb-2">Add a note</label>
+          <textarea id="new-note" rows="3" placeholder="Type your note here…"
+            class="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+          <button onclick="addNote()" class="mt-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
+            Add Note
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Customer + Actions -->
+    <div class="space-y-5">
+
+      <!-- Customer card -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Customer</h3>
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-9 h-9 bg-brand-100 rounded-full flex items-center justify-center text-brand-700 font-bold text-sm" id="customer-avatar"></div>
+          <div>
+            <div class="font-semibold text-slate-800 text-sm" id="customer-name"></div>
+            <div class="text-xs text-slate-400" id="customer-email"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Update Status -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Update Status</h3>
+        <div class="space-y-2">
+          <button onclick="updateStatus('Open')" data-status="Open"
+            class="status-btn w-full text-left px-4 py-2.5 rounded-lg text-sm border border-slate-200 font-medium transition hover:border-brand-400">
+            🔵 Open
+          </button>
+          <button onclick="updateStatus('In Progress')" data-status="In Progress"
+            class="status-btn w-full text-left px-4 py-2.5 rounded-lg text-sm border border-slate-200 font-medium transition hover:border-yellow-400">
+            🟡 In Progress
+          </button>
+          <button onclick="updateStatus('Closed')" data-status="Closed"
+            class="status-btn w-full text-left px-4 py-2.5 rounded-lg text-sm border border-slate-200 font-medium transition hover:border-green-400">
+            🟢 Closed
+          </button>
+        </div>
+        <div id="update-msg" class="hidden mt-3 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">Status updated!</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const ticketId = "{{ ticket_id }}";
+  let currentStatus = '';
+
+  function formatDate(dt) {
+    return new Date(dt).toLocaleString('en-IN', {
+      day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+  }
+
+  function statusBadgeClass(status) {
+    const map = { 'Open':'status-open', 'In Progress':'status-inprogress', 'Closed':'status-closed' };
+    return map[status] || 'bg-slate-100 text-slate-600';
+  }
+
+  function renderNotes(notes) {
+    const list = document.getElementById('notes-list');
+    if (!notes.length) {
+      list.innerHTML = `<p class="text-xs text-slate-400 italic">No notes yet.</p>`;
+      return;
+    }
+    list.innerHTML = notes.map(n => `
+      <div class="bg-slate-50 rounded-lg px-4 py-3">
+        <p class="text-sm text-slate-700">${n.note_text}</p>
+        <p class="text-xs text-slate-400 mt-1.5">${formatDate(n.created_at)}</p>
+      </div>
+    `).join('');
+  }
+
+  function highlightStatusBtn(status) {
+    document.querySelectorAll('.status-btn').forEach(btn => {
+      btn.classList.toggle('bg-brand-50', btn.dataset.status === status);
+      btn.classList.toggle('border-brand-400', btn.dataset.status === status);
+      btn.classList.toggle('text-brand-700', btn.dataset.status === status);
+    });
+  }
+
+  async function loadTicket() {
+    const res = await fetch(`/api/tickets/${ticketId}`);
+    if (!res.ok) { document.getElementById('loading').textContent = 'Ticket not found.'; return; }
+    const t = await res.json();
+
+    currentStatus = t.status;
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('ticket-content').classList.remove('hidden');
+
+    document.getElementById('hdr-id').textContent = t.ticket_id;
+    document.getElementById('ticket-id-label').textContent = t.ticket_id;
+    document.getElementById('ticket-subject').textContent = t.subject;
+    document.getElementById('ticket-description').textContent = t.description;
+    document.getElementById('ticket-created').textContent = formatDate(t.created_at);
+    document.getElementById('ticket-updated').textContent = formatDate(t.updated_at);
+
+    const badge = document.getElementById('ticket-status-badge');
+    badge.textContent = t.status;
+    badge.className = `px-3 py-1 rounded-full text-xs font-bold ${statusBadgeClass(t.status)}`;
+
+    document.getElementById('customer-name').textContent = t.customer_name;
+    document.getElementById('customer-email').textContent = t.customer_email;
+    document.getElementById('customer-avatar').textContent = t.customer_name.charAt(0).toUpperCase();
+
+    renderNotes(t.notes || []);
+    highlightStatusBtn(t.status);
+  }
+
+  async function updateStatus(newStatus) {
+    await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    currentStatus = newStatus;
+
+    const badge = document.getElementById('ticket-status-badge');
+    badge.textContent = newStatus;
+    badge.className = `px-3 py-1 rounded-full text-xs font-bold ${statusBadgeClass(newStatus)}`;
+    highlightStatusBtn(newStatus);
+
+    const msg = document.getElementById('update-msg');
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 2000);
+  }
+
+  async function addNote() {
+    const noteText = document.getElementById('new-note').value.trim();
+    if (!noteText) return;
+
+    await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: noteText }),
+    });
+
+    document.getElementById('new-note').value = '';
+    loadTicket();
+  }
+
+  loadTicket();
+</script>
+{% endblock %}
